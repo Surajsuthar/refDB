@@ -40,6 +40,10 @@ impl Memtable {
         self.memtable_size
     }
 
+    fn scan(&self, start: &[u8], end: &[u8]) -> Vec<(Bytes, Bytes)> {
+        unimplemented!()
+    }
+
     fn is_empty(&self) -> bool {
         self.map.is_empty()
     }
