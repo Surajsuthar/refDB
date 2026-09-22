@@ -5,10 +5,11 @@
 //! candidate key during binary search.
 //!
 
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 pub const SIZE_U16: usize = size_of::<u16>();
 
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub(super) struct Block {
     pub data: Vec<u8>,
     pub offsets: Vec<u16>,
@@ -31,7 +32,35 @@ impl Block {
     }
 
     fn decode(bytes: Bytes) -> Self {
-        let bytes = bytes.as_ref();
-        unimplemented!()
+        let buff = bytes.as_ref();
+        let offset_len = (&buff[buff.len() - SIZE_U16..]).get_u16() as usize;
+        let data_end = buff.len() - SIZE_U16 - (offset_len * SIZE_U16);
+
+        let offset_space = &buff[data_end..buff.len() - SIZE_U16];
+
+        let offsets = offset_space
+            .chunks(SIZE_U16)
+            .map(|mut x| x.get_u16())
+            .collect();
+
+        let data = buff[0..data_end].to_vec();
+
+        Self { data, offsets }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+
+    fn test_encode_decode() {
+        let block = Block {
+            data: vec![1, 2, 3],
+            offsets: vec![0, 1, 2],
+        };
+        let encoded = block.encode();
+        let decoded = Block::decode(encoded);
+        assert_eq!(block, decoded);
     }
 }
