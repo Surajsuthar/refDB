@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use refDB::error::Result;
 use refDB::query::execution::session::StmtResult;
 use refDB::{client::Client, error::Error};
 use rustyline::{

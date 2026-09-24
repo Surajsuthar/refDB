@@ -205,11 +205,14 @@ impl Parser<'_> {
 
         loop {
             let expr = self.parse_expr()?;
-            let order = self.peek().ok()?.and_then(|t| match t {
-                Token::Keyword(Keyword::Desc) => Some(ats::Direction::Descending),
-                Token::Keyword(Keyword::Asc) => Some(ats::Direction::Ascending),
-                _ => None,
-            });
+            let order = self
+                .peek()?
+                .and_then(|t| match t {
+                    Token::Keyword(Keyword::Desc) => Some(ats::Direction::Descending),
+                    Token::Keyword(Keyword::Asc) => Some(ats::Direction::Ascending),
+                    _ => None,
+                })
+                .ok_or(Error::InvalidInput("expected ASC or DESC".into()))?;
 
             order_by.push((expr, order));
 

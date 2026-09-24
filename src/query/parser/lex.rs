@@ -230,7 +230,7 @@ impl<'a> Lexer<'a> {
             token => Some(token),
         };
 
-        self.chars.next();
+        // self.chars.next();
         tokne
     }
 
@@ -316,5 +316,193 @@ impl<'a> Lexer<'a> {
         while self.chars.peek().is_some_and(|c| c.is_whitespace()) {
             self.chars.next();
         }
+    }
+}
+
+mod test {
+    use super::*;
+
+    fn lex(input: &str) -> Vec<Token> {
+        Lexer::new(input).collect::<Result<Vec<_>>>().unwrap()
+    }
+
+    #[test]
+    fn text_lex_select() {
+        let token = lex("SELECT name FROM users");
+        assert_eq!(
+            token,
+            vec![
+                Token::Keyword(Keyword::Select),
+                Token::Identifer("name".into()),
+                Token::Keyword(Keyword::From),
+                Token::Identifer("users".into())
+            ]
+        )
+    }
+
+    #[test]
+    fn text_lex_keyword() {
+        let tokens = lex("SELECT FROM WHERE LIMIT OFFSET AND OR BY ASC DESC
+                 INSERT INTO VALUES UPDATE DELETE DROP TABLE AS");
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Keyword(Keyword::Select),
+                Token::Keyword(Keyword::From),
+                Token::Keyword(Keyword::Where),
+                Token::Keyword(Keyword::Limit),
+                Token::Keyword(Keyword::Offset),
+                Token::Keyword(Keyword::And),
+                Token::Keyword(Keyword::Or),
+                Token::Keyword(Keyword::By),
+                Token::Keyword(Keyword::Asc),
+                Token::Keyword(Keyword::Desc),
+                Token::Keyword(Keyword::Insert),
+                Token::Keyword(Keyword::Into),
+                Token::Keyword(Keyword::Values),
+                Token::Keyword(Keyword::Update),
+                Token::Keyword(Keyword::Delete),
+                Token::Keyword(Keyword::Drop),
+                Token::Keyword(Keyword::Table),
+                Token::Keyword(Keyword::As),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lex_identifiers() {
+        let tokens = lex("users user_id first_name");
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Identifer("users".into()),
+                Token::Identifer("user_id".into()),
+                Token::Identifer("first_name".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lex_case_insensitive() {
+        let tokens = lex("SELECT Select select SeLeCt");
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Keyword(Keyword::Select),
+                Token::Keyword(Keyword::Select),
+                Token::Keyword(Keyword::Select),
+                Token::Keyword(Keyword::Select),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lex_identifier_case() {
+        let tokens = lex("Users USER_NAME");
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Identifer("users".into()),
+                Token::Identifer("user_name".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lex_numbers() {
+        let tokens = lex("123 456 3.14 0.5");
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Number("123".into()),
+                Token::Number("456".into()),
+                Token::Number("3.14".into()),
+                Token::Number("0.5".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lex_decimal_edge_cases() {
+        let tokens = lex("1. 1.5 0.25");
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Number("1.".into()),
+                Token::Number("1.5".into()),
+                Token::Number("0.25".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lex_strings() {
+        let tokens = lex("'hello' 'hello world' '123'");
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::String("hello".into()),
+                Token::String("hello world".into()),
+                Token::String("123".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lex_escaped_string() {
+        let tokens = lex("'hello ''world'''");
+        assert_eq!(tokens, vec![Token::String("hello 'world'".into()),]);
+    }
+
+    #[test]
+    fn test_lex_quoted_identifier() {
+        let tokens = lex(r#""user name" "select" "hello""world""#);
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Identifer("user name".into()),
+                Token::Identifer("select".into()),
+                Token::Identifer("hello\"world".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lex_real_query() {
+        let tokens = lex("SELECT id, name
+             FROM users
+             WHERE age >= 18
+             ORDER BY name ASC
+             LIMIT 10;");
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Keyword(Keyword::Select),
+                Token::Identifer("id".into()),
+                Token::Comma,
+                Token::Identifer("name".into()),
+                Token::Keyword(Keyword::From),
+                Token::Identifer("users".into()),
+                Token::Keyword(Keyword::Where),
+                Token::Identifer("age".into()),
+                Token::Gte,
+                Token::Number("18".into()),
+                Token::Keyword(Keyword::Order),
+                Token::Keyword(Keyword::By),
+                Token::Identifer("name".into()),
+                Token::Keyword(Keyword::Asc),
+                Token::Keyword(Keyword::Limit),
+                Token::Number("10".into()),
+                Token::SemiColon,
+            ]
+        );
     }
 }

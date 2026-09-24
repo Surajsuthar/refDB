@@ -2,7 +2,7 @@ use crate::{
     error::{Error, Result},
     query::{
         enigne::engine::Catalog,
-        parser::ats::{self, Expression},
+        parser::ats::{self, Expression, Stmt},
         planner::plan::Plan,
         types::{
             schema::{Column, Table},
@@ -18,7 +18,33 @@ pub struct Planner<'a, C: Catalog> {
 impl<'a, C: Catalog> Planner<'a, C> {
     fn build(&mut self, stmt: ats::Stmt) -> Result<Plan> {
         match stmt {
-            ats::Stmt::Create { name, columns } => self.build_create_table_plan(name, columns),
+            Stmt::Create { name, columns } => self.build_create_table_plan(name, columns),
+            Stmt::Begin | Stmt::Commit | Stmt::Rollback | Stmt::Explain(_) => unimplemented!(),
+            Stmt::DropTable { table } => unimplemented!(),
+            Stmt::Delete {
+                table,
+                where_clause,
+            } => unimplemented!(),
+            Stmt::Insert {
+                table,
+                columns,
+                values,
+            } => unimplemented!(),
+            Stmt::Select {
+                select,
+                from,
+                t_where,
+                group_by,
+                having,
+                order_by,
+                offset,
+                limit,
+            } => unimplemented!(),
+            Stmt::Update {
+                table,
+                set,
+                r_where,
+            } => unimplemented!(),
         }
     }
 
