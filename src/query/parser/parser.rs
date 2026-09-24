@@ -1,7 +1,7 @@
-use std::{fmt::format, iter::Peekable};
+use std::iter::Peekable;
 
 use crate::{
-    error::Result,
+    error::{Error, Result},
     query::{
         parser::ats::{Column, Expression, From},
         types::values::DataType,
@@ -23,6 +23,7 @@ impl Parser<'_> {
         if let Some(token) = parser.lexer.next().transpose()? {
             return Err(Error::InvalidInput(format!("unexpected token {token:?}")));
         }
+
         Ok(stmt)
     }
 
@@ -85,12 +86,46 @@ impl Parser<'_> {
             return Err(Error::InvalidInput(format!("unexpected end of input")));
         };
         match token {
+            Token::Keyword(Keyword::Begin) => self.parse_begin(),
+            Token::Keyword(Keyword::Commit) => self.parse_commit(),
+            Token::Keyword(Keyword::Rollback) => self.parse_rollback(),
+            Token::Keyword(Keyword::Explain) => self.parse_explain(),
+
+            Token::Keyword(Keyword::Drop) => self.parse_drop(),
             Token::Keyword(Keyword::Create) => self.parse_create_table(),
             Token::Keyword(Keyword::Select) => self.parse_select(),
             Token::Keyword(Keyword::Insert) => self.parse_insert(),
+            Token::Keyword(Keyword::Delete) => self.parse_delete(),
+            Token::Keyword(Keyword::Update) => self.parse_update(),
 
             token => Err(Error::InvalidInput(format!("unexpected token"))),
         }
+    }
+
+    fn parse_commit(&mut self) -> Result<ats::Stmt> {
+        self.check(Keyword::Commit.into())?;
+        Ok(ats::Stmt::Commit)
+    }
+
+    fn parse_rollback(&mut self) -> Result<ats::Stmt> {
+        self.check(Keyword::Rollback.into())?;
+        Ok(ats::Stmt::Rollback)
+    }
+
+    fn parse_explain(&mut self) -> Result<ats::Stmt> {
+        self.check(Keyword::Explain.into())?;
+        if self.next_if(|t| *t == Keyword::Explain.into()).is_some() {
+            return Err(Error::InvalidInput(format!(
+                "cannot nest EXPLAIN statements"
+            )));
+        }
+
+        Ok(ats::Stmt::Explain(Box::new(self.parse_stmt()?)))
+    }
+
+    fn parse_begin(&mut self) -> Result<ats::Stmt> {
+        self.check(Keyword::Begin.into())?;
+        Ok(ats::Stmt::Begin)
     }
 
     fn parse_select(&mut self) -> Result<ats::Stmt> {
@@ -106,12 +141,40 @@ impl Parser<'_> {
         })
     }
 
-    fn parse_select_clause(&mut self) -> Result<Vec<(Expression, String)>> {
-        unimplemented!()
+    fn parse_select_clause(&mut self) -> Result<Vec<(Expression, Option<String>)>> {
+        if self.next_if(|c| *c == Keyword::Select.into()).is_none() {
+            return Ok(Vec::new());
+        }
+
+        let mut select = Vec::new();
+
+        loop {
+            let expr = self.parse_expr()?;
+            let mut alias = None;
+
+            if self.next_if(|c| *c == Keyword::As.into()).is_some()
+                || matches!(self.peek()?, Some(Token::Identifer(_)))
+            {
+                if expr == ats::Expression::All {
+                    return Err(Error::InvalidInput(format!("can't alias *")));
+                }
+
+                alias = Some(self.get_next_identifer()?);
+            }
+
+            select.push((expr, alias));
+
+            if self.next_if(|c| *c == Token::Comma).is_none() {
+                break;
+            }
+        }
+
+        Ok(select)
     }
 
     fn parse_from_clause(&mut self) -> Result<Vec<From>> {
-        unimplemented!()
+        self.check(Keyword::From.into())?;
+        unimplemented!();
     }
 
     fn parse_where_clause(&mut self) -> Result<Option<Expression>> {
@@ -132,8 +195,29 @@ impl Parser<'_> {
         Ok(Some(self.parse_expr()?))
     }
 
-    fn parse_order_by_clause(&mut self) -> Result<Option<Expression>> {
-        unimplemented!()
+    fn parse_order_by_clause(&mut self) -> Result<Vec<(ats::Expression, ats::Direction)>> {
+        if self.next_if(|c| *c == Keyword::Order.into()).is_none() {
+            return Ok(Vec::new());
+        }
+
+        let mut order_by = Vec::new();
+        self.check(Keyword::By.into())?;
+
+        loop {
+            let expr = self.parse_expr()?;
+            let order = self.peek().ok()?.and_then(|t| match t {
+                Token::Keyword(Keyword::Desc) => Some(ats::Direction::Descending),
+                Token::Keyword(Keyword::Asc) => Some(ats::Direction::Ascending),
+                _ => None,
+            });
+
+            order_by.push((expr, order));
+
+            if self.next_if(|c| *c == Token::Comma).is_none() {
+                break;
+            }
+        }
+        Ok(order_by)
     }
 
     fn parse_offset_clause(&mut self) -> Result<Option<Expression>> {
@@ -222,6 +306,29 @@ impl Parser<'_> {
         }
 
         Ok(column)
+    }
+
+    fn parse_from_join(&mut self) -> Result<Option<ats::JoinType>> {
+        if self.next_if(|c| *c == Keyword::Join.into()).is_some() {
+            return Ok(Some(ats::JoinType::Inner));
+        }
+
+        if self.next_if(|t| *t == Keyword::Cross.into()).is_some() {
+            self.check(Keyword::Cross.into())?;
+            return Ok(Some(ats::JoinType::Cross));
+        }
+
+        if self.next_if(|t| *t == Keyword::Inner.into()).is_some() {
+            self.check(Keyword::Inner.into())?;
+            return Ok(Some(ats::JoinType::Inner));
+        }
+
+        if self.next_if(|t| *t == Keyword::Inner.into()).is_some() {
+            self.check(Keyword::Inner.into())?;
+            return Ok(Some(ats::JoinType::Inner));
+        }
+
+        Ok(None)
     }
 
     fn parse_expr(&mut self) -> Result<Expression> {

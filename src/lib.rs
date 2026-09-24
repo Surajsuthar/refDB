@@ -1,4 +1,5 @@
-mod client;
-mod error;
-mod query;
-mod storage;
+pub mod client;
+pub mod error;
+pub mod query;
+pub mod server;
+pub mod storage;

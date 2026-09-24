@@ -19,7 +19,7 @@ pub struct Column {
     pub datatype: DataType,
     pub default: Option<DefaultValues>,
     pub nullable: bool,
-    refernce: Option<String>,
+    pub references: Option<String>,
     pub unique: bool,
 }
 
@@ -46,7 +46,7 @@ impl Display for Table {
                 }
             }
 
-            if let Some(refence) = &column.refernce {
+            if let Some(refence) = &column.references {
                 write!(f, " REFERENCES {refence}")?;
             }
 

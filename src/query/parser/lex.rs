@@ -54,6 +54,16 @@ pub enum Keyword {
     Reference,
     Unique,
     Having,
+    Begin,
+    Commit,
+    Rollback,
+    Explain,
+    Order,
+    Join,
+    Left,
+    Right,
+    Inner,
+    Cross,
 
     Bool,
     Boolean,
@@ -99,7 +109,17 @@ impl Display for Keyword {
             Self::String => "STRING",
             Self::Text => "TEXT",
             Self::Varchar => "VARCHAR",
+            Self::Begin => "BEGIN",
+            Self::Commit => "COMMIT",
+            Self::Order => "ORDER",
+            Self::Rollback => "ROLLBACK",
+            Self::Explain => "EXPLAIN",
             Self::Having => "HAVING",
+            Self::Join => "JOIN",
+            Self::Left => "LEFT",
+            Self::Right => "RIGHT",
+            Self::Inner => "INNER",
+            Self::Cross => "CROSS",
 
             Self::Int => "INT",
             Self::Drop => "DROP",
@@ -148,8 +168,16 @@ pub struct Lexer<'a> {
 
 impl Iterator for Lexer<'_> {
     type Item = Result<Token>;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.scan().transpose()
+
+    fn next(&mut self) -> Option<Result<Token>> {
+        match self.scan() {
+            Ok(Some(token)) => Some(Ok(token)),
+            Ok(None) => self
+                .chars
+                .peek()
+                .map(|c| Err(Error::InvalidInput(format!("unexpected character: {}", c)))),
+            Err(e) => Some(Err(e)),
+        }
     }
 }
 

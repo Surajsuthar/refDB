@@ -24,7 +24,7 @@ impl Display for DataType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum DefaultValues {
     Null,
     Boolean(bool),
@@ -32,6 +32,8 @@ pub enum DefaultValues {
     Float(f32),
     String(String),
 }
+
+pub type Row = Vec<DefaultValues>;
 
 impl Display for DefaultValues {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -78,13 +80,46 @@ impl DefaultValues {
             (Float(lhs), Integer(rhs)) => Float(lhs + *rhs as f32),
             (Null, Float(_) | Float(_) | Null) => Null,
             (Integer(_) | Float(_), Null) => Null,
-            (lhs, rhs) => return Err(Error::InvalidData(("Invalide Data".to_string()))),
+            (lhs, rhs) => return Err(Error::InvalidData(format!("can't add {lhs} and {rhs}"))),
         })
     }
 
     // Divides two values. Errors if invalid.
+    pub fn checked_div(&self, other: &Self) -> Result<Self> {
+        use DefaultValues::*;
+        Ok(match (self, other) {
+            (Integer(lhs), Integer(rhs)) => match lhs.checked_div(*rhs) {
+                Some(i) => Integer(i),
+                None => return Err(Error::InvalidData(("Invalide Data".to_string()))),
+            },
+            (Integer(lhs), Float(rhs)) => Float(*lhs as f32 / rhs),
+            (Float(lhs), Integer(rhs)) => Float(lhs / *rhs as f32),
+            (Null, Float(_) | Float(_) | Null) => Null,
+            (Integer(_) | Float(_), Null) => Null,
+            (lhs, rhs) => return Err(Error::InvalidData(format!("can't div {lhs} and {rhs}"))),
+        })
+    }
+
     // Multiplies two values. Errors if invalid.
+    pub fn checked_mul(&self, other: &Self) -> Result<Self> {
+        use DefaultValues::*;
+        Ok(match (self, other) {
+            (Integer(lhs), Integer(rhs)) => match lhs.checked_mul(*rhs) {
+                Some(i) => Integer(i),
+                None => return Err(Error::InvalidData(("Invalide Data".to_string()))),
+            },
+            (Integer(lhs), Float(rhs)) => Float(*lhs as f32 * rhs),
+            (Float(lhs), Integer(rhs)) => Float(lhs * *rhs as f32),
+            (Null, Float(_) | Float(_) | Null) => Null,
+            (Integer(_) | Float(_), Null) => Null,
+            (lhs, rhs) => return Err(Error::InvalidData(format!("can't muliply {lhs} and {rhs}"))),
+        })
+    }
+
     // Exponentiates two values. Errors if invalid.
+    pub fn checked_pow(&self, other: &Self) -> Result<Self> {
+        unimplemented!();
+    }
 
     // Finds the remainder of two values. Errors if invalid.
     //
@@ -93,4 +128,22 @@ impl DefaultValues {
     // always returning a positive value.
 
     // Subtracts two values. Errors if invalid.
+    pub fn checked_sub(&self, other: &Self) -> Result<Self> {
+        use DefaultValues::*;
+        Ok(match (self, other) {
+            (Integer(lhs), Integer(rhs)) => match lhs.checked_sub(*rhs) {
+                Some(i) => Integer(i),
+                None => return Err(Error::InvalidData(("Invalide Data".to_string()))),
+            },
+            (Integer(lhs), Float(rhs)) => Float(*lhs as f32 - rhs),
+            (Float(lhs), Integer(rhs)) => Float(lhs - *rhs as f32),
+            (Null, Float(_) | Float(_) | Null) => Null,
+            (Integer(_) | Float(_), Null) => Null,
+            (lhs, rhs) => {
+                return Err(Error::InvalidData(format!(
+                    "can't subtract {lhs} and {rhs}"
+                )));
+            }
+        })
+    }
 }

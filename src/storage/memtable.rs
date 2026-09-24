@@ -12,7 +12,7 @@ pub struct Memtable {
 }
 
 impl Memtable {
-    fn new(mem_id: usize) -> Self {
+    pub fn new(mem_id: usize) -> Self {
         Self {
             map: Arc::new(SkipMap::new()),
             memtable_size: AtomicUsize::new(0),
@@ -20,7 +20,7 @@ impl Memtable {
         }
     }
 
-    fn put(&self, key: &[u8], val: &[u8]) -> Result<()> {
+    pub fn put(&self, key: &[u8], val: &[u8]) -> Result<()> {
         assert!(!key.is_empty(), "Key should not be empty");
 
         let size = key.len() + val.len();
@@ -33,21 +33,21 @@ impl Memtable {
     }
 
     // can be value and tomb
-    fn get(&self, key: &[u8]) -> Option<Bytes> {
+    pub fn get(&self, key: &[u8]) -> Option<Bytes> {
         assert!(!key.is_empty(), "Key should not be empty");
         self.map.get(key).map(|val| val.value().clone())
     }
 
-    fn memtable_size(&self) -> usize {
+    pub fn memtable_size(&self) -> usize {
         self.memtable_size
             .load(std::sync::atomic::Ordering::Relaxed)
     }
 
-    fn scan(&self, start: &[u8], end: &[u8]) -> Vec<(Bytes, Bytes)> {
+    pub fn scan(&self, start: &[u8], end: &[u8]) -> Vec<(Bytes, Bytes)> {
         unimplemented!()
     }
 
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.map.is_empty()
     }
 }
