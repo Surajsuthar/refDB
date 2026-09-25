@@ -64,6 +64,9 @@ pub enum Keyword {
     Right,
     Inner,
     Cross,
+    On,
+    Group,
+    Set,
 
     Bool,
     Boolean,
@@ -98,9 +101,11 @@ impl Display for Keyword {
             Self::Unique => "UNIQUE",
             Self::Insert => "INSERT",
             Self::As => "AS",
+            Self::Set => "SET",
             Self::Primary => "PRIMARY",
             Self::Null => "NULL",
             Self::Not => "NOT",
+            Self::On => "ON",
             Self::Default => "DEFAULT",
             Self::Index => "INDEX",
             Self::Reference => "REFERENCE",
@@ -120,6 +125,7 @@ impl Display for Keyword {
             Self::Right => "RIGHT",
             Self::Inner => "INNER",
             Self::Cross => "CROSS",
+            Self::Group => "GROUP",
 
             Self::Int => "INT",
             Self::Drop => "DROP",
@@ -319,6 +325,7 @@ impl<'a> Lexer<'a> {
     }
 }
 
+#[cfg(test)]
 mod test {
     use super::*;
 

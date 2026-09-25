@@ -1,14 +1,14 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::storage::{engine::Engine, memtable::Memtable, sst};
+use crate::storage::{engine::LsmEngine, memtable::Memtable, sst};
 
-pub struct LsmStorageEngine {
+pub struct LsmStorageEngineState {
     pub memtable: Arc<Memtable>,
     pub immutable_memtable: Vec<Arc<Memtable>>,
     pub sstables: HashMap<usize, Arc<sst::SstBlock>>,
 }
 
-impl LsmStorageEngine {
+impl LsmStorageEngineState {
     fn create() -> Self {
         Self {
             memtable: Arc::new(Memtable::new(0)),
@@ -18,12 +18,12 @@ impl LsmStorageEngine {
     }
 }
 
-impl Engine for LsmStorageEngine {
+impl LsmEngine {
     fn delete(&mut self, key: &[u8]) {
         unimplemented!();
     }
 
-    fn read(&self, key: &[u8]) -> Option<Vec<u8>> {
+    fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
         unimplemented!();
     }
 

@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::query::types::values::DataType;
 
+#[derive(Debug)]
 pub enum Stmt {
     Begin,
     Commit,
@@ -28,7 +29,7 @@ pub enum Stmt {
         select: Vec<(Expression, Option<String>)>,
         from: Vec<From>,
         t_where: Option<Expression>,
-        group_by: Option<Expression>,
+        group_by: Vec<Expression>,
         having: Option<Expression>,
         order_by: Vec<(Expression, Direction)>,
         offset: Option<Expression>,
@@ -41,6 +42,7 @@ pub enum Stmt {
     },
 }
 
+#[derive(Debug)]
 pub enum From {
     Table {
         name: String,
@@ -86,7 +88,7 @@ pub enum Literal {
     String(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum JoinType {
     Left,
     Right,

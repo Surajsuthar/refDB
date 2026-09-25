@@ -16,15 +16,21 @@ pub struct Planner<'a, C: Catalog> {
 }
 
 impl<'a, C: Catalog> Planner<'a, C> {
+    pub fn new(catalog: &'a C) -> Self {
+        Self { catalog: catalog }
+    }
+
     fn build(&mut self, stmt: ats::Stmt) -> Result<Plan> {
         match stmt {
             Stmt::Create { name, columns } => self.build_create_table_plan(name, columns),
-            Stmt::Begin | Stmt::Commit | Stmt::Rollback | Stmt::Explain(_) => unimplemented!(),
-            Stmt::DropTable { table } => unimplemented!(),
+            Stmt::Begin | Stmt::Commit | Stmt::Rollback | Stmt::Explain(_) => {
+                panic!("unexpected statement {stmt:?}")
+            }
+            Stmt::DropTable { table } => self.build_drop_table_plan(table),
             Stmt::Delete {
                 table,
                 where_clause,
-            } => unimplemented!(),
+            } => self.build_delete_plan(table, where_clause),
             Stmt::Insert {
                 table,
                 columns,
@@ -90,7 +96,23 @@ impl<'a, C: Catalog> Planner<'a, C> {
         })
     }
 
+    fn build_drop_table_plan(&mut self, table: String) -> Result<Plan> {
+        Ok(Plan::DropTable { name: table })
+    }
+
+    fn build_delete_plan(
+        &mut self,
+        table: String,
+        where_clause: Option<ats::Expression>,
+    ) -> Result<Plan> {
+        let table = self.catalog.get_table(&table)?;
+        unimplemented!();
+    }
+
     fn build_constant_value(expr: ats::Expression) -> Result<DefaultValues> {
         unimplemented!();
     }
 }
+
+#[derive(Debug, Default)]
+pub struct Scope {}

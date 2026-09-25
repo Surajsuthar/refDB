@@ -1,9 +1,9 @@
-use std::iter::Peekable;
+use std::{collections::BTreeMap, iter::Peekable};
 
 use crate::{
     error::{Error, Result},
     query::{
-        parser::ats::{Column, Expression, From},
+        parser::ats::{Column, Expression, From, JoinType},
         types::values::DataType,
     },
 };
@@ -173,8 +173,49 @@ impl Parser<'_> {
     }
 
     fn parse_from_clause(&mut self) -> Result<Vec<From>> {
-        self.check(Keyword::From.into())?;
-        unimplemented!();
+        if self.next_if(|c| *c == Keyword::From.into()).is_none() {
+            return Ok(Vec::new());
+        }
+        let mut from = Vec::new();
+        loop {
+            let mut from_table = self.parse_from_table()?;
+
+            while let Some(r_type) = self.parse_from_join()? {
+                let left = Box::new(from_table);
+                let right = Box::new(self.parse_from_table()?);
+
+                let mut predicate = None;
+                if r_type != ats::JoinType::Cross {
+                    self.check(Keyword::On.into())?;
+                    predicate = Some(self.parse_expr()?);
+                }
+
+                from_table = ats::From::Join {
+                    left,
+                    right,
+                    j_type: r_type,
+                    predicate,
+                }
+            }
+            from.push(from_table);
+            if self.next_if(|c| *c == Token::Comma).is_none() {
+                break;
+            }
+        }
+
+        Ok(from)
+    }
+
+    fn parse_from_table(&mut self) -> Result<ats::From> {
+        let name = self.get_next_identifer()?;
+        let mut alias = None;
+        if self.next_if(|c| *c == Keyword::As.into()).is_some()
+            || matches!(self.peek()?, Some(Token::Identifer(_)))
+        {
+            alias = Some(self.get_next_identifer()?);
+        }
+
+        Ok(ats::From::Table { name, alias })
     }
 
     fn parse_where_clause(&mut self) -> Result<Option<Expression>> {
@@ -184,8 +225,21 @@ impl Parser<'_> {
         Ok(Some(self.parse_expr()?))
     }
 
-    fn parse_group_by_clause(&mut self) -> Result<Option<Expression>> {
-        unimplemented!()
+    fn parse_group_by_clause(&mut self) -> Result<Vec<ats::Expression>> {
+        if self.next_if(|c| *c == Keyword::Group.into()).is_none() {
+            return Ok(Vec::new());
+        }
+
+        let mut group = Vec::new();
+        self.check(Keyword::By.into())?;
+        loop {
+            group.push(self.parse_expr()?);
+            if self.next_if(|c| *c == Token::Comma).is_none() {
+                break;
+            }
+        }
+
+        Ok(group)
     }
 
     fn parse_having_clause(&mut self) -> Result<Option<Expression>> {
@@ -334,10 +388,6 @@ impl Parser<'_> {
         Ok(None)
     }
 
-    fn parse_expr(&mut self) -> Result<Expression> {
-        unimplemented!()
-    }
-
     fn parse_insert(&mut self) -> Result<ats::Stmt> {
         self.check(Keyword::Insert.into())?;
         self.check(Keyword::Into.into())?;
@@ -399,6 +449,48 @@ impl Parser<'_> {
     }
 
     fn parse_update(&mut self) -> Result<ats::Stmt> {
+        self.check(Keyword::Update.into())?;
+        let table_name = self.get_next_identifer()?;
+        self.check(Keyword::Set.into())?;
+
+        let mut set = BTreeMap::new();
+        loop {
+            let column = self.get_next_identifer()?;
+            self.check(Token::Eq)?;
+
+            let expr = (self.next_if(|t| *t == Keyword::Default.into()).is_none())
+                .then(|| self.parse_expr())
+                .transpose()?;
+
+            if set.contains_key(&column) {
+                return Err(Error::InvalidData(format!(
+                    "column {column} set multiple times"
+                )));
+            }
+
+            if self.next_if(|c| *c == Token::Comma).is_none() {
+                break;
+            }
+        }
+
+        Ok(ats::Stmt::Update {
+            table: table_name,
+            set,
+            r_where: self.parse_where_clause()?,
+        })
+    }
+
+    fn parse_expr(&mut self) -> Result<Expression> {
         unimplemented!()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn parse_begin() {
+        let stmt = Parser::parse("BEGIN;").unwrap();
     }
 }

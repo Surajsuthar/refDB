@@ -33,15 +33,15 @@ struct Shell {
 
 impl Shell {
     fn new(host: &str, port: u16) -> Result<Self> {
-        let client = Client::connect((host, port)?);
+        let client = Client::connect((host, port))?;
         let mut editor = Editor::new()?;
 
         unimplemented!();
     }
 
     fn execute(&mut self, input: &str) -> Result<()> {
-        if input.start('#') {
-            self.ex_commnad(input)
+        if input.starts_with("#") {
+            self.ex_command(input)?
         } else {
             self.ex_sql(input)?
         }

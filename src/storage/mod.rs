@@ -1,5 +1,6 @@
 pub mod block;
 pub mod block_builder;
+pub mod bloom;
 pub mod compact;
 pub mod engine;
 pub mod lsm_storage;

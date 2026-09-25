@@ -33,8 +33,6 @@ pub enum DefaultValues {
     String(String),
 }
 
-pub type Row = Vec<DefaultValues>;
-
 impl Display for DefaultValues {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -147,3 +145,9 @@ impl DefaultValues {
         })
     }
 }
+
+pub type Row = Vec<DefaultValues>;
+
+pub trait RowIterator: Iterator<Item = Result<Row>> {}
+
+impl<I: Iterator<Item = Result<Row>>> RowIterator for I {}
