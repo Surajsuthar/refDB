@@ -116,13 +116,13 @@ pub enum Aggregate {
 }
 
 impl Aggregate {
-    fn format(&self) -> String {
-        match self {
-            Self::Avg(expr) => format!("AVG({})", expr.display()),
-            Self::Sum(expr) => format!("SUM({})", expr.display()),
-            Self::Count(expr) => format!("COUNT({})", expr.display()),
-            Self::Max(expr) => format!("MAX({})", expr.display()),
-            Self::Min(expr) => format!("MIN({})", expr.display()),
-        }
-    }
+    // fn format(&self) -> String {
+    //     match self {
+    //         Self::Avg(expr) => format!("AVG({})", expr.display()),
+    //         Self::Sum(expr) => format!("SUM({})", expr.display()),
+    //         Self::Count(expr) => format!("COUNT({})", expr.display()),
+    //         Self::Max(expr) => format!("MAX({})", expr.display()),
+    //         Self::Min(expr) => format!("MIN({})", expr.display()),
+    //     }
+    // }
 }
