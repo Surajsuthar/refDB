@@ -619,11 +619,17 @@ impl Parser<'_> {
             return Ok(Some(op));
         }
 
-        Ok(self.next_if(|t| {
-            match *t {
-                Token::Ex
-            }
-        }))
+        let token = self.next_if(|t| match t {
+            Token::Asterisk => PostfixOp::Factorial.precedence() >= min_prece,
+            _ => false,
+        });
+
+        let op = token.map(|t| match t {
+            Token::Asterisk => PostfixOp::Factorial,
+            _ => unreachable!(),
+        });
+
+        Ok(op)
     }
 }
 

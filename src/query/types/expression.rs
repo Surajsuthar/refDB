@@ -3,10 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::{Error, Result},
-    query::{
-        planner::plan::Node,
-        types::values::{DefaultValues, Row},
-    },
+    query::types::values::{DefaultValues, Row},
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

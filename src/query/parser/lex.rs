@@ -26,6 +26,7 @@ pub enum Token {
     Asterisk,
     Slash,
     Percent,
+    Exclamation,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -116,6 +117,7 @@ impl Display for Keyword {
             Self::Not => "NOT",
             Self::On => "ON",
             Self::Default => "DEFAULT",
+            Self::Is => "IS",
             Self::Index => "INDEX",
             Self::Reference => "REFERENCE",
             Self::Bool => "BOOL",
