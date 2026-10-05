@@ -1,5 +1,4 @@
-use std::path::PathBuf;
-
+use clap::Parser as _;
 use refDB::error::Result;
 use refDB::query::execution::session::StmtResult;
 use refDB::{client::Client, error::Error};
@@ -7,6 +6,7 @@ use rustyline::{
     Editor,
     validate::{ValidationContext, ValidationResult},
 };
+use std::path::PathBuf;
 
 struct Command {
     stmt: Option<String>,
@@ -26,7 +26,7 @@ impl Command {
 
 struct Shell {
     client: Client,
-    editor: Editor,
+    editor: Editor<InputValidate>,
     history_path: Option<PathBuf>,
     show_header: bool,
 }

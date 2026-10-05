@@ -1,9 +1,9 @@
-use std::{collections::BTreeMap, iter::Peekable};
+use std::{collections::BTreeMap, iter::Peekable, ops::Add};
 
 use crate::{
     error::{Error, Result},
     query::{
-        parser::ats::{Column, Expression, From, JoinType},
+        parser::ats::{Column, Expression, From},
         types::values::DataType,
     },
 };
@@ -52,8 +52,8 @@ impl Parser<'_> {
         }
     }
 
-    fn next_if(&mut self, fun: impl Fn(&Token) -> bool) -> Option<Token> {
-        self.peek().ok()?.filter(|t| fun(t))?;
+    fn next_if(&mut self, predicate: impl Fn(&Token) -> bool) -> Option<Token> {
+        self.peek().ok()?.filter(|t| predicate(t))?;
         self.next().ok()
     }
 
@@ -481,7 +481,278 @@ impl Parser<'_> {
     }
 
     fn parse_expr(&mut self) -> Result<Expression> {
-        unimplemented!()
+        self.parse_expr_at(0)
+    }
+
+    fn parse_expr_at(&mut self, min_prece: u8) -> Result<ats::Expression> {
+        let mut lhs = if let Some(prefix) = self.parse_prefix_op(min_prece) {
+            let next_expr = prefix.precedence() + prefix.associativity();
+            let rhs = self.parse_expr_at(next_expr)?;
+            prefix.into_expression(rhs)
+        } else {
+            self.parse_expr_atom()?
+        };
+
+        while let Some(postfix) = self.parse_postfix_op(min_prece)? {
+            lhs = postfix.into_expression(lhs)
+        }
+
+        while let Some(infix) = self.parse_infix_operator(min_prece) {
+            let next_prece = infix.precedence() + infix.associativity();
+            let rhs = self.parse_expr_at(next_prece)?;
+            lhs = infix.into_expression(lhs, rhs);
+        }
+
+        while let Some(postfix) = self.parse_postfix_op(min_prece)? {
+            lhs = postfix.into_expression(lhs)
+        }
+
+        Ok(lhs)
+    }
+
+    fn parse_expr_atom(&mut self) -> Result<ats::Expression> {
+        Ok(match self.next()? {
+            Token::Asterisk => ats::Expression::All,
+
+            Token::Number(n) if n.chars().all(|c| c.is_ascii_digit()) => {
+                ats::Literal::Integer(n.parse()?).into()
+            }
+            Token::Number(n) => ats::Literal::Float(n.parse()?).into(),
+            Token::String(s) => ats::Literal::String(s).into(),
+            Token::Keyword(Keyword::True) => ats::Literal::Boolean(true).into(),
+            Token::Keyword(Keyword::False) => ats::Literal::Boolean(false).into(),
+            Token::Keyword(Keyword::Infinity) => ats::Literal::Float(f32::INFINITY).into(),
+            Token::Keyword(Keyword::NaN) => ats::Literal::Float(f32::NAN).into(),
+            Token::Keyword(Keyword::Null) => ats::Literal::Null.into(),
+
+            Token::Identifer(table) if self.next_if(|t| *t == Token::Period).is_some() => {
+                ats::Expression::Column(Some(table), self.get_next_identifer()?)
+            }
+
+            Token::OpenParen => {
+                let expr = self.parse_expr()?;
+                self.check(Token::CloseParen)?;
+                expr
+            }
+            token => {
+                return Err(Error::InvalidInput(format!(
+                    "expected expression atom, found {token:?}"
+                )));
+            }
+        })
+    }
+
+    fn parse_prefix_op(&mut self, min_prece: u8) -> Option<PrefixOperator> {
+        let token = self.next_if(|t| match t {
+            Token::Keyword(Keyword::Not) => PrefixOperator::Not.precedence() > min_prece,
+            Token::Plus => PrefixOperator::Plus.precedence() > min_prece,
+            Token::Minus => PrefixOperator::Minus.precedence() > min_prece,
+            _ => false,
+        });
+
+        let op = token.map(|t| match t {
+            Token::Keyword(Keyword::Not) => PrefixOperator::Not,
+            Token::Plus => PrefixOperator::Plus,
+            Token::Minus => PrefixOperator::Minus,
+            _ => unreachable!(),
+        });
+
+        op
+    }
+
+    fn parse_infix_operator(&mut self, min_prece: u8) -> Option<InfixOp> {
+        let token = self.next_if(|t| match t {
+            Token::Asterisk => InfixOp::Multiply.precedence() >= min_prece,
+            Token::Plus => InfixOp::Add.precedence() >= min_prece,
+            Token::Minus => InfixOp::Sub.precedence() >= min_prece,
+            Token::Slash => InfixOp::Divide.precedence() >= min_prece,
+            Token::Percent => InfixOp::Remainder.precedence() >= min_prece,
+            Token::Eq => InfixOp::Eq.precedence() >= min_prece,
+            Token::Gt => InfixOp::Gt.precedence() >= min_prece,
+            Token::Gte => InfixOp::Gte.precedence() >= min_prece,
+            Token::Lt => InfixOp::Lt.precedence() >= min_prece,
+            Token::Lte => InfixOp::Lte.precedence() >= min_prece,
+            Token::Keyword(Keyword::And) => InfixOp::And.precedence() >= min_prece,
+            Token::Keyword(Keyword::Or) => InfixOp::Or.precedence() >= min_prece,
+            Token::Keyword(Keyword::Like) => InfixOp::Like.precedence() >= min_prece,
+            _ => false,
+        });
+
+        let op = token.map(|t| match t {
+            Token::Asterisk => InfixOp::Multiply,
+            Token::Plus => InfixOp::Add,
+            Token::Minus => InfixOp::Sub,
+            Token::Slash => InfixOp::Divide,
+            Token::Percent => InfixOp::Remainder,
+            Token::Eq => InfixOp::Eq,
+            Token::Gt => InfixOp::Gt,
+            Token::Gte => InfixOp::Gte,
+            Token::Lt => InfixOp::Lt,
+            Token::Keyword(Keyword::And) => InfixOp::And,
+            Token::Keyword(Keyword::Or) => InfixOp::Or,
+            Token::Keyword(Keyword::Like) => InfixOp::Like,
+            Token::Lte => InfixOp::Lte,
+            _ => unreachable!(),
+        });
+
+        op
+    }
+
+    fn parse_postfix_op(&mut self, min_prece: u8) -> Result<Option<PostfixOp>> {
+        if self.peek()? == Some(&Token::Keyword(Keyword::Is)) {
+            if PostfixOp::Is(ats::Literal::Null).precedence() < min_prece {
+                return Ok(None);
+            }
+            self.check(Keyword::Is.into())?;
+            let not = self.next_if(|t| *t == Keyword::Not.into()).is_some();
+            let value = match self.next()? {
+                Token::Keyword(Keyword::NaN) => ats::Literal::Float(f32::NAN),
+                Token::Keyword(Keyword::Null) => ats::Literal::Null,
+                token => return Err(Error::InvalidInput(format!("unexpected token {token:?}"))),
+            };
+
+            let op = match not {
+                false => PostfixOp::Is(value),
+                true => PostfixOp::IsNot(value),
+            };
+
+            return Ok(Some(op));
+        }
+
+        Ok(self.next_if(|t| {
+            match *t {
+                Token::Ex
+            }
+        }))
+    }
+}
+
+enum Associativity {
+    Left,
+    Right,
+}
+
+impl Add<Associativity> for u8 {
+    type Output = Self;
+    fn add(self, rhs: Associativity) -> Self::Output {
+        self + match rhs {
+            Associativity::Left => 1,
+            Associativity::Right => 0,
+        }
+    }
+}
+
+enum PrefixOperator {
+    Minus,
+    Plus,
+    Not,
+}
+
+impl PrefixOperator {
+    fn precedence(&self) -> u8 {
+        match self {
+            PrefixOperator::Minus | PrefixOperator::Plus => 10,
+            PrefixOperator::Not => 3,
+        }
+    }
+
+    fn associativity(&self) -> Associativity {
+        Associativity::Right
+    }
+
+    fn into_expression(self, rhs: ats::Expression) -> ats::Expression {
+        let rhs = Box::new(rhs);
+        match self {
+            Self::Plus => ats::Operator::Identity(rhs).into(),
+            Self::Minus => ats::Operator::Negate(rhs).into(),
+            Self::Not => ats::Operator::Not(rhs).into(),
+        }
+    }
+}
+
+enum InfixOp {
+    Add,
+    And,
+    Divide,
+    Eq,
+    Expo,
+    Gt,
+    Gte,
+    Lt,
+    Lte,
+    Like,
+    Multiply,
+    NotEq,
+    Or,
+    Remainder,
+    Sub,
+}
+
+impl InfixOp {
+    fn precedence(&self) -> u8 {
+        match self {
+            Self::Eq | Self::NotEq | Self::Like => 4,
+            Self::Gt | Self::Gte | Self::Lt | Self::Lte => 5,
+            Self::Add | Self::Sub => 6,
+            Self::Multiply | Self::Divide | Self::Remainder => 7,
+            Self::Or => 1,
+            Self::And => 2,
+            Self::Expo => 8,
+        }
+    }
+
+    fn associativity(&self) -> Associativity {
+        match self {
+            Self::Expo => Associativity::Right,
+            _ => Associativity::Left,
+        }
+    }
+
+    fn into_expression(self, lhs: ats::Expression, rhs: ats::Expression) -> ats::Expression {
+        let (lhs, rhs) = (Box::new(lhs), Box::new(rhs));
+        match self {
+            Self::Add => ats::Operator::Add(lhs, rhs).into(),
+            Self::And => ats::Operator::And(lhs, rhs).into(),
+            Self::Divide => ats::Operator::Divide(lhs, rhs).into(),
+            Self::Eq => ats::Operator::Eq(lhs, rhs).into(),
+            Self::Expo => ats::Operator::Expo(lhs, rhs).into(),
+            Self::Gt => ats::Operator::Gt(lhs, rhs).into(),
+            Self::Gte => ats::Operator::Gte(lhs, rhs).into(),
+            Self::Lt => ats::Operator::Lt(lhs, rhs).into(),
+            Self::Lte => ats::Operator::Lte(lhs, rhs).into(),
+            Self::Like => ats::Operator::Like(lhs, rhs).into(),
+            Self::Multiply => ats::Operator::Multiply(lhs, rhs).into(),
+            Self::NotEq => ats::Operator::NotEq(lhs, rhs).into(),
+            Self::Or => ats::Operator::Or(lhs, rhs).into(),
+            Self::Remainder => ats::Operator::Remainder(lhs, rhs).into(),
+            Self::Sub => ats::Operator::Sub(lhs, rhs).into(),
+        }
+    }
+}
+
+enum PostfixOp {
+    Factorial,
+    Is(ats::Literal),
+    IsNot(ats::Literal),
+}
+
+impl PostfixOp {
+    fn precedence(&self) -> u8 {
+        match self {
+            Self::Factorial => 9,
+            Self::Is(_) | Self::IsNot(_) => 4,
+        }
+    }
+
+    fn into_expression(&self, lhs: ats::Expression) -> ats::Expression {
+        let lhs = Box::new(lhs);
+        match self {
+            Self::Factorial => ats::Operator::Factorial(lhs).into(),
+            Self::Is(lit) => ats::Operator::Is(lhs, lit.clone()).into(),
+            Self::IsNot(lit) => {
+                ats::Operator::Not(ats::Operator::Is(lhs, lit.clone()).into()).into()
+            }
+        }
     }
 }
 

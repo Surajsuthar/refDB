@@ -1,6 +1,9 @@
 use crate::{
     error::Result,
-    query::types::{schema::Table, values::Row},
+    query::types::{
+        schema::Table,
+        values::{DefaultValues, Row},
+    },
 };
 
 pub trait Transaction: Catalog {
@@ -10,7 +13,7 @@ pub trait Transaction: Catalog {
     fn insert(&self, table: &str, data: Vec<Row>) -> Result<()>;
     fn delete(&self, table: &str, id: u64) -> Result<()>;
     fn update(&self, table: &str, id: u64, data: &[u8]) -> Result<()>;
-    fn get(&self, table: &str, id: u64) -> Result<Vec<u8>>;
+    fn get(&self, table: &str, id: &[DefaultValues]) -> Result<Vec<u8>>;
 }
 
 pub trait Catalog {

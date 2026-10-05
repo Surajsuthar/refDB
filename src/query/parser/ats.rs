@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, hash::Hash};
 
 use crate::query::types::values::DataType;
 
@@ -56,7 +56,7 @@ pub enum From {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expression {
     All,
     Column(Option<String>, String),
@@ -86,6 +86,19 @@ pub enum Literal {
     Integer(i32),
     Float(f32),
     String(String),
+}
+
+impl Hash for Literal {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Literal::Null => {}
+            Literal::Boolean(b) => b.hash(state),
+            Literal::Float(f) => f.to_bits().hash(state),
+            Literal::Integer(i) => i.hash(state),
+            Literal::String(s) => s.hash(state),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -124,19 +137,28 @@ pub struct Column {
     pub references: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Operator {
     And(Box<Expression>, Box<Expression>),
     Or(Box<Expression>, Box<Expression>),
-    Equal(Box<Expression>, Box<Expression>),
-    GreaterThan(Box<Expression>, Box<Expression>),
-    GreaterThanOrEqual(Box<Expression>, Box<Expression>),
-    LessThan(Box<Expression>, Box<Expression>),
-    LessThanOrEqual(Box<Expression>, Box<Expression>),
+    Eq(Box<Expression>, Box<Expression>),
+    Gt(Box<Expression>, Box<Expression>),
+    Gte(Box<Expression>, Box<Expression>),
+    Lt(Box<Expression>, Box<Expression>),
+    Lte(Box<Expression>, Box<Expression>),
     Not(Box<Expression>),
-    NotEqual(Box<Expression>),
+    NotEq(Box<Expression>, Box<Expression>),
     Is(Box<Expression>, Literal),
     Like(Box<Expression>, Box<Expression>),
+    Identity(Box<Expression>),
+    Negate(Box<Expression>),
+    Divide(Box<Expression>, Box<Expression>),
+    Remainder(Box<Expression>, Box<Expression>),
+    Expo(Box<Expression>, Box<Expression>),
+    Add(Box<Expression>, Box<Expression>),
+    Multiply(Box<Expression>, Box<Expression>),
+    Sub(Box<Expression>, Box<Expression>),
+    Factorial(Box<Expression>),
 }
 
 impl Expression {
@@ -151,14 +173,15 @@ impl Expression {
             Self::Operator(op) => match op {
                 And(lhs, rhs)
                 | Or(lhs, rhs)
-                | Equal(lhs, rhs)
-                | GreaterThan(lhs, rhs)
-                | GreaterThanOrEqual(lhs, rhs)
-                | LessThan(lhs, rhs)
-                | LessThanOrEqual(lhs, rhs)
+                | Eq(lhs, rhs)
+                | Gt(lhs, rhs)
+                | Gte(lhs, rhs)
+                | Lt(lhs, rhs)
+                | Lte(lhs, rhs)
                 | Like(lhs, rhs) => lhs.walk(visitor) & rhs.walk(visitor),
 
-                Is(ex, _) | NotEqual(ex) | Not(ex) => ex.walk(visitor),
+                Is(ex, _) | NotEq(ex, _) | Not(ex) => ex.walk(visitor),
+                Factorial(ex) => ex.walk(visitor),
             },
 
             Self::All | Self::Column(_, _) | Self::Literal(_) => true,
@@ -185,20 +208,38 @@ impl Expression {
             Self::Operator(op) => match op {
                 And(lhs, rhs)
                 | Or(lhs, rhs)
-                | Equal(lhs, rhs)
-                | GreaterThan(lhs, rhs)
-                | GreaterThanOrEqual(lhs, rhs)
-                | LessThan(lhs, rhs)
-                | LessThanOrEqual(lhs, rhs)
+                | Eq(lhs, rhs)
+                | Gt(lhs, rhs)
+                | Gte(lhs, rhs)
+                | Lt(lhs, rhs)
+                | Lte(lhs, rhs)
                 | Like(lhs, rhs) => {
                     lhs.collect(visitor, exprs);
                     rhs.collect(visitor, exprs);
                 }
 
-                Is(ex, _) | NotEqual(ex) | Not(ex) => ex.collect(visitor, exprs),
+                Is(ex, _) | NotEq(ex, _) | Not(ex) => ex.collect(visitor, exprs),
             },
 
             Self::All | Self::Column(_, _) | Self::Literal(_) => {}
         }
+    }
+}
+
+impl core::convert::From<Literal> for Expression {
+    fn from(literal: Literal) -> Self {
+        Self::Literal(literal)
+    }
+}
+
+impl core::convert::From<Operator> for Expression {
+    fn from(op: Operator) -> Self {
+        Self::Operator(op)
+    }
+}
+
+impl core::convert::From<Operator> for Box<Expression> {
+    fn from(value: Operator) -> Self {
+        Box::new(value.into())
     }
 }

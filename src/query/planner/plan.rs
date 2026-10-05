@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     error::Result,
     query::{
         enigne::engine::Catalog,
-        parser::ats::{self, Direction, Expression},
-        planner::planner::Planner,
-        types::{schema::Table, values::DefaultValues},
+        parser::ats::{self, Direction},
+        types::{expression::Expression, schema::Table, values::DefaultValues},
     },
 };
 
@@ -39,6 +40,7 @@ impl Plan {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Node {
     Aggregate {
         source: Box<Node>,
@@ -104,6 +106,7 @@ pub enum Node {
     },
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Aggregate {
     Count(Expression),
     Sum(Expression),
@@ -112,4 +115,14 @@ pub enum Aggregate {
     Min(Expression),
 }
 
-impl Aggregate {}
+impl Aggregate {
+    fn format(&self) -> String {
+        match self {
+            Self::Avg(expr) => format!("AVG({})", expr.display()),
+            Self::Sum(expr) => format!("SUM({})", expr.display()),
+            Self::Count(expr) => format!("COUNT({})", expr.display()),
+            Self::Max(expr) => format!("MAX({})", expr.display()),
+            Self::Min(expr) => format!("MIN({})", expr.display()),
+        }
+    }
+}

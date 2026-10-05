@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::storage::{engine::LsmEngine, memtable::Memtable, sst};
+use crate::storage::{engine::LsmEngine, memtable::Memtable, sst, wal::Wal};
 
 pub struct LsmStorageEngineState {
     pub memtable: Arc<Memtable>,

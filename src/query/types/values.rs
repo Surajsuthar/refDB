@@ -1,11 +1,11 @@
 use std::fmt::Display;
 
-use crate::error::Error;
+use crate::{error::Error, query::types::schema::Table};
 use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum DataType {
     Integer,
     Boolean,
@@ -116,6 +116,7 @@ impl DefaultValues {
 
     // Exponentiates two values. Errors if invalid.
     pub fn checked_pow(&self, other: &Self) -> Result<Self> {
+        use DefaultValues::*;
         unimplemented!();
     }
 
@@ -143,6 +144,23 @@ impl DefaultValues {
                 )));
             }
         })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Label {
+    None,
+    Qualified(String, String),
+    Unqualified(String),
+}
+
+impl Display for Label {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::None => write!(f, ""),
+            Self::Qualified(table, columns) => write!(f, "{table}.{columns}"),
+            Self::Unqualified(name) => write!(f, "{name}"),
+        }
     }
 }
 

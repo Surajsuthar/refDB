@@ -6,6 +6,7 @@ pub mod engine;
 pub mod lsm_storage;
 pub mod memtable;
 pub mod sst;
+pub mod wal;
 
 pub struct LsmOptions {
     pub block_size: usize,

@@ -23,6 +23,9 @@ pub enum Token {
     Comma,
     Colon,
     Period,
+    Asterisk,
+    Slash,
+    Percent,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -67,6 +70,12 @@ pub enum Keyword {
     On,
     Group,
     Set,
+    True,
+    False,
+    Infinity,
+    NaN,
+    Like,
+    Is,
 
     Bool,
     Boolean,
@@ -111,6 +120,7 @@ impl Display for Keyword {
             Self::Reference => "REFERENCE",
             Self::Bool => "BOOL",
             Self::Boolean => "BOOLEAN",
+            Self::Like => "LIKE",
             Self::String => "STRING",
             Self::Text => "TEXT",
             Self::Varchar => "VARCHAR",
@@ -125,6 +135,11 @@ impl Display for Keyword {
             Self::Right => "RIGHT",
             Self::Inner => "INNER",
             Self::Cross => "CROSS",
+            Self::True => "TRUE",
+            Self::False => "FALSE",
+            Self::Infinity => "INFINITY",
+            Self::NaN => "NaN",
+
             Self::Group => "GROUP",
 
             Self::Int => "INT",

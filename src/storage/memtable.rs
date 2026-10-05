@@ -5,10 +5,13 @@ use bytes::Bytes;
 use crossbeam_skiplist::SkipMap;
 use std::sync::{Arc, atomic::AtomicUsize};
 
+use crate::storage::wal::Wal;
+
 pub struct Memtable {
     map: Arc<SkipMap<Bytes, Bytes>>,
     memtable_size: AtomicUsize,
     mem_id: usize,
+    pub wal: Option<Wal>,
 }
 
 impl Memtable {
@@ -17,6 +20,7 @@ impl Memtable {
             map: Arc::new(SkipMap::new()),
             memtable_size: AtomicUsize::new(0),
             mem_id,
+            wal: None,
         }
     }
 

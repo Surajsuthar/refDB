@@ -3,7 +3,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::{Error, Result},
-    query::types::values::{DefaultValues, Row},
+    query::{
+        planner::plan::Node,
+        types::values::{DefaultValues, Row},
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -147,5 +150,66 @@ impl Expression {
                 }
             },
         })
+    }
+
+    fn walk(&mut self, visitor: &mut impl FnMut(&Expression) -> bool) -> bool {
+        if !visitor(self) {
+            return false;
+        }
+
+        match self {
+            Self::Add(lhs, rhs)
+            | Self::And(lhs, rhs)
+            | Self::Divide(lhs, rhs)
+            | Self::Or(lhs, rhs)
+            | Self::Multiply(lhs, rhs)
+            | Self::Like(lhs, rhs)
+            | Self::Eq(lhs, rhs)
+            | Self::Gt(lhs, rhs)
+            | Self::Lt(lhs, rhs)
+            | Self::Subtract(lhs, rhs) => lhs.walk(visitor) && rhs.walk(visitor),
+
+            Self::Is(expr, _) | Self::Neglate(expr) | Self::Not(expr) => expr.walk(visitor),
+
+            Self::Constant(_) | Self::Columns(_) => true,
+        }
+    }
+
+    pub fn contains(&self, visitor: &impl Fn(&Expression) -> bool) -> bool {
+        !self.walk(&mut |e| !visitor(e))
+    }
+
+    pub fn transform(
+        mut self,
+        before: &impl Fn(Self) -> Result<Self>,
+        after: &impl Fn(Self) -> Result<Self>,
+    ) -> Result<Self> {
+        let xform = |mut expr: Box<Expression>| -> Result<Box<Expression>> {
+            *expr = expr.transform(before, after)?;
+            Ok(expr)
+        };
+
+        self = before(self)?;
+        self = match self {
+            Self::Add(lhs, rhs) => Self::Add(xform(lhs)?, xform(rhs)?),
+            Self::And(lhs, rhs) => Self::And(xform(lhs)?, xform(rhs)?),
+            Self::Or(lhs, rhs) => Self::Or(xform(lhs)?, xform(rhs)?),
+            Self::Like(lhs, rhs) => Self::Like(xform(lhs)?, xform(rhs)?),
+            Self::Eq(lhs, rhs) => Self::Eq(xform(lhs)?, xform(rhs)?),
+            Self::Gt(lhs, rhs) => Self::Gt(xform(lhs)?, xform(rhs)?),
+            Self::Lt(lhs, rhs) => Self::Lt(xform(lhs)?, xform(rhs)?),
+            Self::Subtract(lhs, rhs) => Self::Subtract(xform(lhs)?, xform(rhs)?),
+            Self::Is(lhs, value) => Self::Is(xform(lhs)?, value),
+            Self::Neglate(lhs) => Self::Neglate(xform(lhs)?),
+            Self::Not(lhs) => Self::Not(xform(lhs)?),
+
+            Self::Divide(lhs, rhs) => Self::Divide(xform(lhs)?, xform(rhs)?),
+            Self::Multiply(lhs, rhs) => Self::Multiply(xform(lhs)?, xform(rhs)?),
+
+            expr @ (Self::Constant(_) | Self::Columns(_)) => expr,
+        };
+
+        self = after(self)?;
+        Ok(self)
     }
 }
