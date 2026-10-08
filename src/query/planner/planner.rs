@@ -1,11 +1,16 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::{
     error::Result,
     query::{
         enigne::engine::Catalog,
         parser::ats::{self, Direction},
-        planner::plan::Plan,
+        planner::{context::Context, plan::Plan},
+        types::{
+            expression::{self, Expression},
+            schema::Column,
+            values::{DefaultValues, Label},
+        },
     },
 };
 
@@ -82,11 +87,14 @@ impl<'a, C: Catalog> Planner<'a, C> {
         table: String,
         where_clause: Option<ats::Expression>,
     ) -> Result<Plan> {
-        unimplemented!()
+        let table = self.catalog.get_table(&table)?;
+        let ctx = Context::from_table(&table)?;
+        let filter = where_clause.map(|expr|);
+        unimplemented!();
     }
 
     fn build_drop_planner(&mut self, table: String) -> Result<Plan> {
-        unimplemented!()
+        Ok(Plan::DropTable { name: table })
     }
 
     fn build_create_table_planner(
@@ -94,7 +102,45 @@ impl<'a, C: Catalog> Planner<'a, C> {
         name: String,
         columns: Vec<ats::Column>,
     ) -> Result<Plan> {
-        unimplemented!()
+        let Some(primary_key) = columns.iter().position(|i| i.primary_key) else {
+            return Err(crate::error::Error::InvalidInput(format!(
+                "{name} table have no primary key"
+            )));
+        };
+
+        if columns.iter().filter(|i| i.primary_key).count() > 1 {
+            return Err(crate::error::Error::InvalidInput(format!(
+                "{name} table have multiple primary key"
+            )));
+        }
+
+        let columns = columns
+            .into_iter()
+            .map(|c| {
+                let nullable = c.nullable.unwrap_or(!c.primary_key);
+                Ok(Column {
+                    name: c.name,
+                    datatype: c.datatype,
+                    nullable,
+                    unique: c.unique || c.primary_key,
+                    index: (c.index || c.unique || c.references.is_some()) && !c.primary_key,
+                    references: c.references,
+                    default: match c.default {
+                        Some(expr) => Some(build_constant_value()?),
+                        None if nullable => Some(crate::query::types::values::DefaultValues::Null),
+                        None => None,
+                    },
+                })
+            })
+            .collect::<Result<_>>()?;
+
+        Ok(Plan::CreateTable {
+            schema: crate::query::types::schema::Table {
+                name,
+                primary_kay: primary_key,
+                column: columns,
+            },
+        })
     }
 
     fn build_update_table_planner(
@@ -104,5 +150,50 @@ impl<'a, C: Catalog> Planner<'a, C> {
         r_where: Option<ats::Expression>,
     ) -> Result<Plan> {
         unimplemented!()
+    }
+
+    fn build_constant_value(expr: ats::Expression) -> Result<DefaultValues> {
+        unimplemented!();
+    }
+
+    fn build_expression(expr: ats::Expression, ctx: &Context) -> Result<Expression> {
+        use expression::Expression::*;
+
+        if let Some(idx) = ctx.lookup_aggregate(&expr) {
+            Ok(Columns(idx))
+        }
+
+        let build = |expr: Box<ats::Expression>| -> Result<Box<Expression>> {
+            Ok(Box::new(Self::build_expression(*expr, ctx)?))
+        };
+
+        Ok(match expr {
+            ats::Expression::Literal(l) => Constant(match l {
+                ats::Literal::Boolean(b) => DefaultValues::Boolean(b),
+                ats::Literal::Float(f) => DefaultValues::Float(f),
+                ats::Literal::Integer(i) => DefaultValues::Integer(i),
+                ats::Literal::Null => DefaultValues::Null,
+                ats::Literal::String(s) => DefaultValues::String(s)
+            }),
+            ats::Expression::Column(table,name) => {
+                Columns(ctx.lookup_column(table.as_deref(), &name)?)
+            },
+            ats::Expression::Operator(op) => match op {
+                ats::Operator::Add(lhs,rhs) => Add(build(lhs)?, build(rhs)?),
+                ats::Operator::Sub(lhs,rhs) => Subtract(build(lhs)?, build(rhs)?),
+                ats::Operator::Multiply(lhs,rhs) => Multiply(build(lhs)?, build(rhs)?),
+                ats::Operator::Divide(lhs,rhs) => Divide(build(lhs)?, build(rhs)?),
+                ats::Operator::Negate(lhs) => Neglate(build(lhs)?),
+                ats::Operator::Eq(lhs,rhs) => Eq(build(lhs)?, build(rhs)?),
+                ats::Operator::Gt(lhs,rhs) => Gt(build(lhs)?, build(rhs)?),
+                ats::Operator::Lt(lhs,rhs) => Lt(build(lhs)?, build(rhs)?),
+                ats::Operator::And(lhs,rhs) => And(build(lhs)?, build(rhs)?),
+                ats::Operator::Or(lhs,rhs) => Or(build(lhs)?, build(rhs)?),
+                ats::Operator::Gte(lhs, rhs) => Or(Gt(build(lhs)?, build(rhs)?).into(), Eq(build(lhs)?, build(rhs)?).into()),
+                ats::Operator::Lte(lhs, rhs) => Or(Lt(build(lhs)?, build(rhs)?).into(), Eq(build(lhs)?, build(rhs)?).into()),
+            }
+
+            ats::Expression::All => return Err(crate::error::Error::InvalidData(format!("invalid")))
+        })
     }
 }

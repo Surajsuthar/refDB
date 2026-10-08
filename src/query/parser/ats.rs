@@ -64,6 +64,15 @@ pub enum Expression {
     Operator(Operator),
 }
 
+#[derive(Clone, Debug)]
+pub enum Literal {
+    Null,
+    Boolean(bool),
+    Integer(i32),
+    Float(f32),
+    String(String),
+}
+
 impl PartialEq for Literal {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -78,15 +87,6 @@ impl PartialEq for Literal {
 }
 
 impl Eq for Literal {}
-
-#[derive(Clone, Debug)]
-pub enum Literal {
-    Null,
-    Boolean(bool),
-    Integer(i32),
-    Float(f32),
-    String(String),
-}
 
 impl Hash for Literal {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {

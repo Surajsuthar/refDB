@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -172,7 +174,7 @@ impl Expression {
         }
     }
 
-    pub fn contains(&self, visitor: &impl Fn(&Expression) -> bool) -> bool {
+    pub fn contains(&mut self, visitor: &impl Fn(&Expression) -> bool) -> bool {
         !self.walk(&mut |e| !visitor(e))
     }
 

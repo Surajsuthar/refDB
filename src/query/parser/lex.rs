@@ -29,6 +29,34 @@ pub enum Token {
     Exclamation,
 }
 
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Number(n) => n,
+            Self::String(s) => s,
+            Self::Identifer(i) => i,
+            Self::Keyword(k) => k.fmt(f),
+            Self::Period => ".",
+            Self::Asterisk => "*",
+            Self::CloseParen => ")",
+            Self::Colon => ":",
+            Self::Comma => ",",
+            Self::Eq => "=",
+            Self::Exclamation => "!",
+            Self::Gt => ">",
+            Self::Gte => ">=",
+            Self::Lt => "<",
+            Self::Lte => "<=",
+            Self::Minus => "-",
+            Self::Plus => "+",
+            Self::Slash => "/",
+            Self::Percent => "%",
+            Self::OpenParen => "(",
+            Self::SemiColon => ";",
+        })
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Keyword {
     Select,

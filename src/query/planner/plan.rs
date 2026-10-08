@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use serde::{Deserialize, Serialize};
 
@@ -6,8 +6,12 @@ use crate::{
     error::Result,
     query::{
         enigne::engine::Catalog,
-        parser::ats::{self, Direction},
-        types::{expression::Expression, schema::Table, values::DefaultValues},
+        parser::ats::{self},
+        types::{
+            expression::Expression,
+            schema::Table,
+            values::{DefaultValues, Label},
+        },
     },
 };
 
@@ -22,16 +26,20 @@ pub enum Plan {
     Delete {
         table: String,
         primary_key: usize,
+        source: Node,
     },
     Insert {
         table: String,
         column: Option<HashMap<usize, usize>>,
+        source: Node,
     },
     Update {
         table: String,
         primary_key: usize,
         expressions: Vec<(usize, Expression)>,
+        source: Node,
     },
+    Select(Node),
 }
 
 impl Plan {
@@ -40,7 +48,7 @@ impl Plan {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug)]
 pub enum Node {
     Aggregate {
         source: Box<Node>,
@@ -70,11 +78,11 @@ pub enum Node {
         alias: Option<String>,
     },
     Limit {
-        sourse: Box<Node>,
+        source: Box<Node>,
         limit: usize,
     },
     Offset {
-        sourse: Box<Node>,
+        source: Box<Node>,
         limit: usize,
     },
     NestedLoopJoin {
@@ -104,6 +112,50 @@ pub enum Node {
         filter: Option<Expression>,
         alias: Option<String>,
     },
+    Nothing {
+        columns: Vec<Label>,
+    },
+}
+
+impl Node {
+    /// Returns the number of columns emitted by the node.
+    pub fn columns(&self) -> usize {
+        match self {
+            Self::IndexLookup { table, .. }
+            | Self::KeyLookup { table, .. }
+            | Self::Scan { table, .. } => table.column.len(),
+
+            Self::Filter { source, .. }
+            | Self::Limit { source, .. }
+            | Self::Offset { source, .. }
+            | Self::Order { source, .. } => source.columns(),
+
+            Self::HashJoin { left, right, .. } | Self::NestedLoopJoin { left, right, .. } => {
+                left.columns() + right.columns()
+            }
+
+            // these nodes modify
+            Self::Aggregate {
+                aggregates,
+                group_by,
+                ..
+            } => aggregates.len() + group_by.len(),
+
+            Self::Projection { expressions, .. } => expressions.len(),
+            Self::Remap { targets, .. } => targets
+                .iter()
+                .copied()
+                .flatten()
+                .map(|i| i + 1)
+                .max()
+                .unwrap_or(0),
+
+            Self::Nothing { columns } => columns.len(),
+            Self::Values { rows } => rows.first().map(|row| row.len()).unwrap_or(0),
+        }
+    }
+
+    ///
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -125,4 +177,70 @@ impl Aggregate {
     //         Self::Min(expr) => format!("MIN({})", expr.display()),
     //     }
     // }
+    //
+
+    pub fn expr(&self) -> &Expression {
+        match self {
+            Self::Avg(expr)
+            | Self::Sum(expr)
+            | Self::Count(expr)
+            | Self::Max(expr)
+            | Self::Min(expr) => expr,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum Direction {
+    Ascending,
+    Descending,
+}
+
+impl Display for Direction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Direction::Ascending => f.write_str("asc"),
+            Direction::Descending => f.write_str("dsce"),
+        }
+    }
+}
+
+impl From<ats::Direction> for Direction {
+    fn from(value: ats::Direction) -> Self {
+        match value {
+            ats::Direction::Ascending => Direction::Ascending,
+            ats::Direction::Descending => Direction::Descending,
+        }
+    }
+}
+
+impl Display for Plan {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::CreateTable { schema } => write!(f, "CreateTable: {}", schema.name),
+            Self::DropTable { name: table, .. } => write!(f, "DropTable: {table}"),
+            Self::Delete { table, source, .. } => {
+                write!(f, "Delete: {table}")?;
+                source.format(f, "", false, true)
+            }
+            Self::Insert { table, source, .. } => {
+                write!(f, "Insert: {}", table.name)?;
+                source.format(f, "", false, true)
+            }
+            Self::Update {
+                table,
+                source,
+                expressions,
+                ..
+            } => {
+                let expressions = expressions
+                    .iter()
+                    .map(|(i, expr)| format!("{}={}", table.columns[*i].name, expr.display(source)))
+                    .join(", ");
+                write!(f, "Update: {} ({expressions})", table.name)?;
+                source.format(f, "", false, true)
+            }
+            Self::Select(root) => root.format(f, "", true, true),
+        }
+    }
 }
