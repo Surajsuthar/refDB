@@ -35,7 +35,7 @@ impl Display for Token {
             Self::Number(n) => n,
             Self::String(s) => s,
             Self::Identifer(i) => i,
-            Self::Keyword(k) => k.fmt(f),
+            Self::Keyword(k) => return k.fmt(f),
             Self::Period => ".",
             Self::Asterisk => "*",
             Self::CloseParen => ")",

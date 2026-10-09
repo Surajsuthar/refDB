@@ -453,7 +453,7 @@ impl Parser<'_> {
         let table_name = self.get_next_identifer()?;
         self.check(Keyword::Set.into())?;
 
-        let mut set = BTreeMap::new();
+        let set = BTreeMap::new();
         loop {
             let column = self.get_next_identifer()?;
             self.check(Token::Eq)?;
@@ -514,10 +514,16 @@ impl Parser<'_> {
         Ok(match self.next()? {
             Token::Asterisk => ats::Expression::All,
 
-            Token::Number(n) if n.chars().all(|c| c.is_ascii_digit()) => {
-                ats::Literal::Integer(n.parse()?).into()
-            }
-            Token::Number(n) => ats::Literal::Float(n.parse()?).into(),
+            Token::Number(n) if n.chars().all(|c| c.is_ascii_digit()) => ats::Literal::Integer(
+                n.parse()
+                    .map_err(|e: std::num::ParseIntError| Error::InvalidInput(e.to_string()))?,
+            )
+            .into(),
+            Token::Number(n) => ats::Literal::Float(
+                n.parse()
+                    .map_err(|e: std::num::ParseFloatError| Error::InvalidInput(e.to_string()))?,
+            )
+            .into(),
             Token::String(s) => ats::Literal::String(s).into(),
             Token::Keyword(Keyword::True) => ats::Literal::Boolean(true).into(),
             Token::Keyword(Keyword::False) => ats::Literal::Boolean(false).into(),

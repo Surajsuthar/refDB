@@ -155,7 +155,57 @@ impl Node {
         }
     }
 
-    ///
+    pub fn column_label(&self, index: usize) -> Label {
+        match self {
+            Self::IndexLookup { table, alias, .. }
+            | Self::KeyLookup { table, alias, .. }
+            | Self::Scan { table, alias, .. } => Label::Qualified(
+                alias.as_ref().unwrap_or(&table.name).clone(),
+                table.column[index].name.clone(),
+            ),
+
+            Self::Aggregate {
+                source, group_by, ..
+            } => match group_by.get(index) {
+                Some(Expression::Columns(index)) => source.column_label(*index),
+                Some(_) | None => Label::None,
+            },
+            Self::Projection {
+                sourse,
+                expressions,
+                aliases,
+            } => match aliases.get(index) {
+                Some(Label::None) | None => match expressions.get(index) {
+                    Some(Expression::Columns(index)) => sourse.column_label(*index),
+                    Some(_) | None => Label::None,
+                },
+                Some(alias) => alias.clone(),
+            },
+            Self::HashJoin { left, right, .. } | Self::NestedLoopJoin { left, right, .. } => {
+                if index < left.columns() {
+                    left.column_label(index)
+                } else {
+                    right.column_label(index - left.columns())
+                }
+            }
+
+            Self::Filter { source, .. }
+            | Self::Limit { source, .. }
+            | Self::Offset { source, .. }
+            | Self::Order { source, .. } => source.column_label(index),
+
+            Self::Nothing { columns } => columns.get(index).cloned().unwrap_or(Label::None),
+
+            Self::Remap { source, targets } => targets
+                .iter()
+                .copied()
+                .position(|i| i == Some(index))
+                .map(|i| source.column_label(i))
+                .unwrap_or(Label::None),
+
+            Self::Values { .. } => Label::None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -224,7 +274,7 @@ impl Display for Plan {
                 source.format(f, "", false, true)
             }
             Self::Insert { table, source, .. } => {
-                write!(f, "Insert: {}", table.name)?;
+                write!(f, "Insert: {}", table)?;
                 source.format(f, "", false, true)
             }
             Self::Update {

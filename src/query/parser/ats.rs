@@ -175,12 +175,18 @@ impl Expression {
                 | Or(lhs, rhs)
                 | Eq(lhs, rhs)
                 | Gt(lhs, rhs)
+                | Remainder(lhs, rhs)
                 | Gte(lhs, rhs)
                 | Lt(lhs, rhs)
+                | Expo(lhs, rhs)
+                | Add(lhs, rhs)
+                | Sub(lhs, rhs)
+                | Multiply(lhs, rhs)
                 | Lte(lhs, rhs)
+                | Divide(lhs, rhs)
                 | Like(lhs, rhs) => lhs.walk(visitor) & rhs.walk(visitor),
 
-                Is(ex, _) | NotEq(ex, _) | Not(ex) => ex.walk(visitor),
+                Is(ex, _) | NotEq(ex, _) | Not(ex) | Identity(ex) | Negate(ex) => ex.walk(visitor),
                 Factorial(ex) => ex.walk(visitor),
             },
 
@@ -210,6 +216,12 @@ impl Expression {
                 | Or(lhs, rhs)
                 | Eq(lhs, rhs)
                 | Gt(lhs, rhs)
+                | Remainder(lhs, rhs)
+                | Expo(lhs, rhs)
+                | Divide(lhs, rhs)
+                | Add(lhs, rhs)
+                | Sub(lhs, rhs)
+                | Multiply(lhs, rhs)
                 | Gte(lhs, rhs)
                 | Lt(lhs, rhs)
                 | Lte(lhs, rhs)
@@ -218,7 +230,9 @@ impl Expression {
                     rhs.collect(visitor, exprs);
                 }
 
-                Is(ex, _) | NotEq(ex, _) | Not(ex) => ex.collect(visitor, exprs),
+                Is(ex, _) | Identity(ex) | Negate(ex) | NotEq(ex, _) | Factorial(ex) | Not(ex) => {
+                    ex.collect(visitor, exprs)
+                }
             },
 
             Self::All | Self::Column(_, _) | Self::Literal(_) => {}
