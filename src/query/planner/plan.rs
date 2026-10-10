@@ -34,7 +34,7 @@ pub enum Plan {
         source: Node,
     },
     Update {
-        table: String,
+        table: Table,
         primary_key: usize,
         expressions: Vec<(usize, Expression)>,
         source: Node,

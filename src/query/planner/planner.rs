@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::BTreeMap;
 
 use crate::{
     error::Result,
@@ -9,7 +9,7 @@ use crate::{
         types::{
             expression::{self, Expression},
             schema::Column,
-            values::{DefaultValues, Label},
+            values::{DefaultValues},
         },
     },
 };
@@ -149,7 +149,24 @@ impl<'a, C: Catalog> Planner<'a, C> {
         set: BTreeMap<String, Option<ats::Expression>>,
         r_where: Option<ats::Expression>,
     ) -> Result<Plan> {
-        unimplemented!()
+        let table = self.catalog.get_table(&table)?;
+        let ctx = Context::from_table(&table)?;
+        let mut filter = r_where.map(|e| Self::build_expression(e, &ctx)).transpose()?;
+        let mut expresion = Vec::new();
+        for (column, expr) in set {
+            let index = ctx.lookup_column(None, &column)?;
+            let expr = match expr {
+                Some(e) => Self::build_expression(e, &ctx)?,
+                None => match &table.column[index].default {
+                    Some(default) => Expression::Constant(default.clone()),
+                    None => return Err(crate::error::Error::InvalidInput(format!("column {column} has no default value")))
+                }
+            };
+            expresion.push((index, expr));
+        }
+
+        Ok(Plan::Update { table: table.clone(), primary_key: table.primary_kay, expressions: expresion, source: super::plan::Node::Scan { table, filter, alias: None } })
+
     }
 
     fn build_constant_value(expr: ats::Expression) -> Result<DefaultValues> {
@@ -159,8 +176,8 @@ impl<'a, C: Catalog> Planner<'a, C> {
     fn build_expression(expr: ats::Expression, ctx: &Context) -> Result<Expression> {
         use expression::Expression::*;
 
-        if let Some(idx) = ctx.lookup_aggregate(&expr) {
-            Ok(Columns(idx))
+        if let Some(idx) = ctx.lookup_aggregate(expr) {
+            return Ok(Columns(idx))
         }
 
         let build = |expr: Box<ats::Expression>| -> Result<Box<Expression>> {
