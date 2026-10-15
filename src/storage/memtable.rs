@@ -24,7 +24,7 @@ impl Memtable {
         }
     }
 
-    pub fn put(&self, key: &[u8], val: &[u8]) -> Result<()> {
+    pub fn write(&self, key: &[u8], val: &[u8]) -> Result<()> {
         assert!(!key.is_empty(), "Key should not be empty");
 
         let size = key.len() + val.len();
@@ -37,7 +37,7 @@ impl Memtable {
     }
 
     // can be value and tomb
-    pub fn get(&self, key: &[u8]) -> Option<Bytes> {
+    pub fn read(&self, key: &[u8]) -> Option<Bytes> {
         assert!(!key.is_empty(), "Key should not be empty");
         self.map.get(key).map(|val| val.value().clone())
     }
@@ -65,14 +65,14 @@ mod tests {
     #[test]
     fn memtable_insert() {
         let mem = Memtable::new(0);
-        mem.put(b"key1", b"val1").unwrap();
-        mem.put(b"key2", b"val2").unwrap();
-        mem.put(b"key3", b"val3").unwrap();
+        mem.write(b"key1", b"val1").unwrap();
+        mem.write(b"key2", b"val2").unwrap();
+        mem.write(b"key3", b"val3").unwrap();
 
-        let val1 = &mem.get(b"key1").unwrap()[..];
+        let val1 = &mem.read(b"key1").unwrap()[..];
         assert_eq!(val1, b"val1");
 
-        let val2 = &mem.get(b"key2").unwrap()[..];
+        let val2 = &mem.read(b"key2").unwrap()[..];
         assert_eq!(val2, b"val2");
     }
 
@@ -80,27 +80,27 @@ mod tests {
     fn memtable_empty() {
         let mem = Memtable::new(0);
         assert_eq!(true, mem.is_empty());
-        mem.put(b"key1", b"val1").unwrap();
+        mem.write(b"key1", b"val1").unwrap();
         assert_eq!(false, mem.is_empty());
     }
 
     #[test]
     fn memtable_overwrite_test() {
         let mem = Memtable::new(0);
-        mem.put(b"key1", b"val1").unwrap();
-        mem.put(b"key1", b"val2").unwrap();
-        mem.put(b"key1", b"val3").unwrap();
+        mem.write(b"key1", b"val1").unwrap();
+        mem.write(b"key1", b"val2").unwrap();
+        mem.write(b"key1", b"val3").unwrap();
 
-        let val1 = &mem.get(b"key1").unwrap()[..];
+        let val1 = &mem.read(b"key1").unwrap()[..];
         assert_eq!(val1, b"val3");
     }
 
     #[test]
     fn memtable_tombstone() {
         let mem = Memtable::new(0);
-        mem.put(b"key1", b"").unwrap();
+        mem.write(b"key1", b"").unwrap();
 
-        let val1 = &mem.get(b"key1").unwrap()[..];
+        let val1 = &mem.read(b"key1").unwrap()[..];
         assert_eq!(true, val1.is_empty());
     }
 
@@ -120,7 +120,7 @@ mod tests {
                     let key = format!("key-{thread_id}-{i}");
                     let val = format!("value-{thread_id}-{i}");
 
-                    mem.put(key.as_bytes(), val.as_bytes()).unwrap();
+                    mem.write(key.as_bytes(), val.as_bytes()).unwrap();
                 }
             });
 
@@ -146,7 +146,7 @@ mod tests {
                     let key = format!("key-{num_thread}-{i}");
                     let val = format!("value-{num_thread}-{i}");
 
-                    mem.put(key.as_bytes(), val.as_bytes()).unwrap();
+                    mem.write(key.as_bytes(), val.as_bytes()).unwrap();
                 }
             }));
         }
@@ -159,7 +159,7 @@ mod tests {
                     let key = format!("key-{thread_id}-{i}");
 
                     // It is okay if the key isn't there yet.
-                    let _ = mem.get(key.as_bytes());
+                    let _ = mem.read(key.as_bytes());
                 }
             }));
         }

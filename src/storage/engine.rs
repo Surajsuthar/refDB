@@ -25,4 +25,5 @@ pub struct LsmStorageOptions {
 pub struct LsmEngine {
     storage: RwLock<Arc<LsmStorageEngineState>>,
     lock: Mutex<()>,
+    lsm_options: LsmStorageOptions,
 }
